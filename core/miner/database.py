@@ -20,14 +20,16 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     and_,
-    or_
+    or_,
+    text
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 
-from core import get_database_url
 
 Base = declarative_base()
+
+
 
 class Pattern(Base):
     __tablename__ = 'patterns'
@@ -92,24 +94,40 @@ class DataManager:
         return self.SessionLocal()
     
     def get_unacknowledged_patterns(
-        self, 
+        self,
         validator_hotkey: str
-    ) -> Pattern:
+    ) -> Pattern | None:
 
         with self.get_session() as session:
-            # Subquery to get pattern IDs that have been acknowledged by this validator
-            acknowledged_subquery = session.query(AcknowledgedPattern.pattern_id).filter(
-                AcknowledgedPattern.validator_hotkey == validator_hotkey
-            ).subquery()
-
-            # Main query for unacknowledged patterns
-            query = session.query(Pattern).filter(
-                ~Pattern.id.in_(acknowledged_subquery)
+            raw_sql = text("""
+                SELECT p.id, p.pattern_id, p.network, p.asset_symbol, p.asset_contract,
+                       p.data, p.timestamp, p.importance
+                FROM patterns p
+                LEFT JOIN acknowledged_patterns ap ON p.id = ap.pattern_id
+                    AND ap.validator_hotkey = :validator_hotkey
+                WHERE ap.pattern_id IS NULL
+                ORDER BY p.id ASC, p.importance DESC
+                LIMIT 1
+            """)
+            
+            result = session.execute(raw_sql, {"validator_hotkey": validator_hotkey}).fetchone()
+            
+            if result is None:
+                return None
+            
+            # Create Pattern object from raw result
+            pattern = Pattern(
+                id=result.id,
+                pattern_id=result.pattern_id,
+                network=result.network,
+                asset_symbol=result.asset_symbol,
+                asset_contract=result.asset_contract,
+                data=result.data,
+                timestamp=result.timestamp,
+                importance=result.importance
             )
-            query = query.order_by(Pattern.id.asc(), Pattern.importance.desc())
-            query = query.limit(1)
-
-            return query.single()
+            
+            return pattern
 
     def acknowledge_pattern(self, pattern_id: int, validator_hotkey: str) -> bool:
 

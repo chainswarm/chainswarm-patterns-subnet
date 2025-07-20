@@ -24,6 +24,7 @@ import bittensor as bt
 import core
 from core.base.miner import BaseMinerNeuron
 from core.miner.database import DataManager
+from core.protocol import DetectedPattern
 
 
 class Miner(BaseMinerNeuron):
@@ -42,7 +43,7 @@ class Miner(BaseMinerNeuron):
 
         self.axon.attach(
             forward_fn=self.pattern_query_ack,
-            blacklist_fn=self._blacklist,
+            blacklist_fn=self.blacklist_pattern_query_ack,
             priority_fn=self.priority_pattern_query_ack,
         )
 
@@ -53,11 +54,12 @@ class Miner(BaseMinerNeuron):
     ) -> core.protocol.PatternQuery:
 
         validator_hotkey = synapse.dendrite.hotkey
+        pattern = self.data_manager.get_unacknowledged_patterns(validator_hotkey)
+        if pattern:
+            synapse.pattern_id = pattern.pattern_id
+            # TODO: parse pattern.data -> List[DetectedPattern]
+            # TODO: synapse.detected_patterns = []
 
-        self.data_manager.get_unacknowledged_patterns()
-
-       # PLACEHOLDER: PUT YOUR PATTERN DETECTION CODE HERE
-       # READ PATTERN FROM DATABASE, SEND TO VALIDATOR
         return synapse
 
     async def pattern_query_ack(self, synapse: core.protocol.PatternQueryAck) -> core.protocol.PatternQueryAck:
@@ -143,7 +145,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    data_manager = DataManager(get_database_url("miner"))
+    data_manager = DataManager(core.get_database_url("miner"))
 
     with Miner(data_manager) as miner:
         while not terminate_event.is_set():

@@ -6,7 +6,7 @@ services:
     container_name: chainswarm-patterns-validator-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: chainswarm_validator
+      POSTGRES_DB: validator
       POSTGRES_USER: validator_user
       POSTGRES_PASSWORD: validator_password
       PGDATA: /var/lib/postgresql/data/pgdata
