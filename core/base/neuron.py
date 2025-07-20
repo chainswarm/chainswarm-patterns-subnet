@@ -23,18 +23,13 @@ import bittensor as bt
 from abc import ABC, abstractmethod
 
 # Sync calls set weights and also resyncs the metagraph.
-from template.utils.config import check_config, add_args, config
-from template.utils.misc import ttl_get_block
-from template import __spec_version__ as spec_version
-from template.mock import MockSubtensor, MockMetagraph
+from core.utils.config import check_config, add_args, config
+from core.utils.misc import ttl_get_block
+from core import __spec_version__ as spec_version
+from core.mock import MockSubtensor, MockMetagraph
 
 
 class BaseNeuron(ABC):
-    """
-    Base class for Bittensor miners. This class is abstract and should be inherited by a subclass. It contains the core logic for all neurons; validators and miners.
-
-    In addition to creating a wallet, subtensor, and metagraph, this class also handles the synchronization of the network state via a basic checkpointing mechanism based on epoch length.
-    """
 
     neuron_type: str = "BaseNeuron"
 
@@ -117,9 +112,6 @@ class BaseNeuron(ABC):
         ...
 
     def sync(self):
-        """
-        Wrapper for synchronizing the state of the network for the given miner or validator.
-        """
         # Ensure miner or validator hotkey is still registered on the network.
         self.check_registered()
 

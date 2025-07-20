@@ -28,19 +28,16 @@ import bittensor as bt
 from typing import List, Union
 from traceback import print_exception
 
-from template.base.neuron import BaseNeuron
-from template.base.utils.weight_utils import (
+from core.base.neuron import BaseNeuron
+from core.base.utils.weight_utils import (
     process_weights_for_netuid,
     convert_weights_and_uids_for_emit,
 )  # TODO: Replace when bittensor switches to numpy
-from template.mock import MockDendrite
-from template.utils.config import add_validator_args
+from core.mock import MockDendrite
+from core.utils.config import add_validator_args
 
 
 class BaseValidatorNeuron(BaseNeuron):
-    """
-    Base class for Bittensor validators. Your validator should inherit from this class.
-    """
 
     neuron_type: str = "ValidatorNeuron"
 

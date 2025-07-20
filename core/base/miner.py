@@ -23,16 +23,18 @@ import traceback
 
 import bittensor as bt
 
-from template.base.neuron import BaseNeuron
-from template.utils.config import add_miner_args
+from core.base.neuron import BaseNeuron
+from core.utils.config import add_miner_args
 
 from typing import Union
 
-
 class BaseMinerNeuron(BaseNeuron):
-    """
-    Base class for Bittensor miners.
-    """
+
+    async def forward(self, synapse: bt.Synapse) -> bt.Synapse:
+        pass
+
+    async def forward_ack(self, synapse: bt.Synapse) -> bt.Synapse:
+        pass
 
     neuron_type: str = "MinerNeuron"
 
@@ -66,6 +68,13 @@ class BaseMinerNeuron(BaseNeuron):
             blacklist_fn=self.blacklist,
             priority_fn=self.priority,
         )
+
+        self.axon.attach(
+            forward_fn=self.forward_ack,
+            blacklist_fn=self.blacklist,
+            priority_fn=self.priority,
+        )
+
         bt.logging.info(f"Axon created: {self.axon}")
 
         # Instantiate runners
@@ -75,27 +84,6 @@ class BaseMinerNeuron(BaseNeuron):
         self.lock = asyncio.Lock()
 
     def run(self):
-        """
-        Initiates and manages the main loop for the miner on the Bittensor network. The main loop handles graceful shutdown on keyboard interrupts and logs unforeseen errors.
-
-        This function performs the following primary tasks:
-        1. Check for registration on the Bittensor network.
-        2. Starts the miner's axon, making it active on the network.
-        3. Periodically resynchronizes with the chain; updating the metagraph with the latest network state and setting weights.
-
-        The miner continues its operations until `should_exit` is set to True or an external interruption occurs.
-        During each epoch of its operation, the miner waits for new blocks on the Bittensor network, updates its
-        knowledge of the network (metagraph), and sets its weights. This process ensures the miner remains active
-        and up-to-date with the network's latest state.
-
-        Note:
-            - The function leverages the global configurations set during the initialization of the miner.
-            - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
-
-        Raises:
-            KeyboardInterrupt: If the miner is stopped by a manual interruption.
-            Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
-        """
 
         # Check that miner is registered on the network.
         self.sync()
@@ -141,10 +129,6 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.error(traceback.format_exc())
 
     def run_in_background_thread(self):
-        """
-        Starts the miner's operations in a separate background thread.
-        This is useful for non-blocking operations.
-        """
         if not self.is_running:
             bt.logging.debug("Starting miner in background thread.")
             self.should_exit = False
@@ -154,9 +138,6 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.debug("Started")
 
     def stop_run_thread(self):
-        """
-        Stops the miner's operations that are running in the background thread.
-        """
         if self.is_running:
             bt.logging.debug("Stopping miner in background thread.")
             self.should_exit = True
@@ -166,30 +147,13 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.debug("Stopped")
 
     def __enter__(self):
-        """
-        Starts the miner's operations in a background thread upon entering the context.
-        This method facilitates the use of the miner in a 'with' statement.
-        """
         self.run_in_background_thread()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        """
-        Stops the miner's background operations upon exiting the context.
-        This method facilitates the use of the miner in a 'with' statement.
-
-        Args:
-            exc_type: The type of the exception that caused the context to be exited.
-                      None if the context was exited without an exception.
-            exc_value: The instance of the exception that caused the context to be exited.
-                       None if the context was exited without an exception.
-            traceback: A traceback object encoding the stack trace.
-                       None if the context was exited without an exception.
-        """
         self.stop_run_thread()
 
     def resync_metagraph(self):
-        """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
         bt.logging.info("resync_metagraph()")
 
         # Sync the metagraph.
