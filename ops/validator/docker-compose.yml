@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres-validator:
+    image: postgres:15-alpine
+    container_name: chainswarm-patterns-validator-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chainswarm_validator
+      POSTGRES_USER: validator_user
+      POSTGRES_PASSWORD: validator_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5434:5432"  # Different port for validator
+    volumes:
+      - postgres_validator_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - validator-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U validator_user -d chainswarm_validator"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pgadmin-validator:
+    image: dpage/pgadmin4:latest
+    container_name: chainswarm-patterns-validator-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@chainswarm-validator.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8082:80"  # pgAdmin web interface for validator
+    volumes:
+      - pgadmin_validator_data:/var/lib/pgadmin
+    networks:
+      - validator-network
+    depends_on:
+      postgres-validator:
+        condition: service_healthy
+
+volumes:
+  postgres_validator_data:
+    driver: local
+  pgadmin_validator_data:
+    driver: local
+
+networks:
+  validator-network:
+    driver: bridge

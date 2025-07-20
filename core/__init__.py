@@ -32,3 +32,21 @@ from . import protocol
 from . import base
 from . import validator
 from .subnet_links import SUBNET_LINKS
+
+import os
+
+def get_database_url(role: str = "miner") -> str:
+    if role == "miner":
+        host = os.getenv("MINER_DB_HOST", "localhost")
+        port = os.getenv("MINER_DB_PORT", "5433")
+        database = os.getenv("MINER_DB_NAME", "chainswarm_miner")
+        username = os.getenv("MINER_DB_USER", "miner_user")
+        password = os.getenv("MINER_DB_PASSWORD", "miner_password")
+    else:
+        host = os.getenv("VALIDATOR_DB_HOST", "localhost")
+        port = os.getenv("VALIDATOR_DB_PORT", "5434")
+        database = os.getenv("VALIDATOR_DB_NAME", "chainswarm_validator")
+        username = os.getenv("VALIDATOR_DB_USER", "validator_user")
+        password = os.getenv("VALIDATOR_DB_PASSWORD", "validator_password")
+
+    return f"postgresql://{username}:{password}@{host}:{port}/{database}"

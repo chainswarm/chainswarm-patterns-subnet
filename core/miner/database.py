@@ -11,12 +11,12 @@ import os
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import (
-    create_engine, 
-    Column, 
-    BigInteger, 
-    String, 
-    Text, 
-    DateTime, 
+    create_engine,
+    Column,
+    BigInteger,
+    String,
+    Text,
+    DateTime,
     Integer,
     ForeignKey,
     and_,
@@ -24,10 +24,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from sqlalchemy.sql import func
+
+from core import get_database_url
 
 Base = declarative_base()
-
 
 class Pattern(Base):
     __tablename__ = 'patterns'
@@ -66,14 +66,22 @@ class AcknowledgedPattern(Base):
 
 class DataManager:
 
-    def __init__(self, database_url: Optional[str] = None):
-
-        if database_url is None:
-            # Default to SQLite database in the project directory
-            db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'patterns.db')
-            database_url = f"sqlite:///{os.path.abspath(db_path)}"
+    def __init__(self, database_url: str):
+        """
+        Initialize the DataManager with database connection.
         
-        self.engine = create_engine(database_url, echo=False)
+        Args:
+            database_url: SQLAlchemy database URL. If None, uses PostgreSQL with default configuration.
+        """
+
+        self.engine = create_engine(
+            database_url,
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=3600
+        )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
         # Create tables if they don't exist
@@ -85,10 +93,8 @@ class DataManager:
     
     def get_unacknowledged_patterns(
         self, 
-        validator_hotkey: str, 
-        limit: Optional[int] = None,
-        min_importance: Optional[int] = None
-    ) -> List[Pattern]:
+        validator_hotkey: str
+    ) -> Pattern:
 
         with self.get_session() as session:
             # Subquery to get pattern IDs that have been acknowledged by this validator
@@ -100,19 +106,10 @@ class DataManager:
             query = session.query(Pattern).filter(
                 ~Pattern.id.in_(acknowledged_subquery)
             )
-
-            # Apply importance filter if specified
-            if min_importance is not None:
-                query = query.filter(Pattern.importance >= min_importance)
-
-            # Order by id (chronological) and importance (descending)
             query = query.order_by(Pattern.id.asc(), Pattern.importance.desc())
+            query = query.limit(1)
 
-            # Apply limit if specified
-            if limit is not None:
-                query = query.limit(limit)
-
-            return query.all()
+            return query.single()
 
     def acknowledge_pattern(self, pattern_id: int, validator_hotkey: str) -> bool:
 
@@ -230,14 +227,15 @@ class DataManager:
 
 
 # Convenience function to create a DataManager instance
-def create_data_manager(database_url: Optional[str] = None) -> DataManager:
+def create_data_manager(database_url: Optional[str] = None, role: str = "miner") -> DataManager:
     """
     Create a DataManager instance.
     
     Args:
-        database_url: SQLAlchemy database URL. If None, uses default SQLite.
+        database_url: SQLAlchemy database URL. If None, uses PostgreSQL with default configuration.
+        role: Either "miner" or "validator" to determine which database to connect to
         
     Returns:
         DataManager instance
     """
-    return DataManager(database_url)
+    return DataManager(database_url, role)

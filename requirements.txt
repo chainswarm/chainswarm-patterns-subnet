@@ -6,3 +6,5 @@ torch>=2
 numpy>=1
 setuptools>=68
 bittensor
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0

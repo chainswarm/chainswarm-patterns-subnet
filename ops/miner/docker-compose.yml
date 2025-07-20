@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres-miner:
+    image: postgres:15-alpine
+    container_name: chainswarm-patterns-miner-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: miner
+      POSTGRES_USER: miner_user
+      POSTGRES_PASSWORD: miner_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"  # Non-default port for miner
+    volumes:
+      - postgres_miner_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - miner-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miner_user -d chainswarm_miner"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pgadmin-miner:
+    image: dpage/pgadmin4:latest
+    container_name: chainswarm-patterns-miner-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@chainswarm.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8081:80"  # pgAdmin web interface for miner
+    volumes:
+      - pgadmin_miner_data:/var/lib/pgadmin
+    networks:
+      - miner-network
+    depends_on:
+      postgres-miner:
+        condition: service_healthy
+
+volumes:
+  postgres_miner_data:
+    driver: local
+  pgadmin_miner_data:
+    driver: local
+
+networks:
+  miner-network:
+    driver: bridge
