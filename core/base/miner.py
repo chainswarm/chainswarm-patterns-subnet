@@ -20,21 +20,12 @@ import asyncio
 import threading
 import argparse
 import traceback
-
 import bittensor as bt
-
 from core.base.neuron import BaseNeuron
 from core.utils.config import add_miner_args
-
 from typing import Union
 
 class BaseMinerNeuron(BaseNeuron):
-
-    async def forward(self, synapse: bt.Synapse) -> bt.Synapse:
-        pass
-
-    async def forward_ack(self, synapse: bt.Synapse) -> bt.Synapse:
-        pass
 
     neuron_type: str = "MinerNeuron"
 
@@ -60,22 +51,6 @@ class BaseMinerNeuron(BaseNeuron):
             wallet=self.wallet,
             config=self.config() if callable(self.config) else self.config,
         )
-
-        # Attach determiners which functions are called when servicing a request.
-        bt.logging.info(f"Attaching forward function to miner axon.")
-        self.axon.attach(
-            forward_fn=self.forward,
-            blacklist_fn=self.blacklist,
-            priority_fn=self.priority,
-        )
-
-        self.axon.attach(
-            forward_fn=self.forward_ack,
-            blacklist_fn=self.blacklist,
-            priority_fn=self.priority,
-        )
-
-        bt.logging.info(f"Axon created: {self.axon}")
 
         # Instantiate runners
         self.should_exit: bool = False
@@ -154,7 +129,6 @@ class BaseMinerNeuron(BaseNeuron):
         self.stop_run_thread()
 
     def resync_metagraph(self):
-        bt.logging.info("resync_metagraph()")
-
-        # Sync the metagraph.
-        self.metagraph.sync(subtensor=self.subtensor)
+        if self.metagraph.block % 100 == 0:
+            bt.logging.info("resync_metagraph()")
+            self.metagraph.sync(subtensor=self.subtensor)

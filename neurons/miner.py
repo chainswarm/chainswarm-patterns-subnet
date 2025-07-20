@@ -1,7 +1,7 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2025 aphex5
-
+import asyncio
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
@@ -16,14 +16,12 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import signal
 import time
 import typing
 import bittensor as bt
 
-# Bittensor Miner Template:
 import core
-
-# import base miner class which takes care of most of the boilerplate
 from core.base.miner import BaseMinerNeuron
 
 
@@ -32,20 +30,38 @@ class Miner(BaseMinerNeuron):
     def __init__(self, config=None):
         super(Miner, self).__init__(config=config)
 
-    async def forward(
+        bt.logging.info(f"Attaching forward function to miner axon.")
+        self.axon.attach(
+            forward_fn=self.pattern_query,
+            blacklist_fn=self.blacklist_pattern_query,
+            priority_fn=self.priority_pattern_query
+        )
+
+        self.axon.attach(
+            forward_fn=self.pattern_query_ack,
+            blacklist_fn=self._blacklist,
+            priority_fn=self.priority_pattern_query_ack,
+        )
+
+        bt.logging.info(f"Axon created: {self.axon}")
+
+    async def pattern_query(
         self, synapse: core.protocol.PatternQuery
     ) -> core.protocol.PatternQuery:
        # PLACEHOLDER: PUT YOUR PATTERN DETECTION CODE HERE
        # READ PATTERN FROM DATABASE, SEND TO VALIDATOR
         return synapse
 
-    async def forward_ack(self, synapse: core.protocol.PatternQueryAck) -> core.protocol.PatternQueryAck:
-        # STORE SENT PATTERN AS SENT TO GIVEN VALIDATOR
+    async def pattern_query_ack(self, synapse: core.protocol.PatternQueryAck) -> core.protocol.PatternQueryAck:
         return synapse
 
-    async def blacklist(
-        self, synapse: bt.Synapse
-    ) -> typing.Tuple[bool, str]:
+    async def blacklist_pattern_query(self, synapse: core.protocol.PatternQuery) -> typing.Tuple[bool, str]:
+         return await self.blacklist_pattern_query(synapse)
+
+    async def blacklist_pattern_query_ack(self, synapse: core.protocol.PatternQueryAck) -> typing.Tuple[bool, str]:
+         return await self.blacklist_pattern_query_ack(synapse)
+
+    async def _blacklist(self, synapse: core.protocol.PatternQuery | core.protocol.PatternQueryAck) -> typing.Tuple[bool, str]:
 
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
             bt.logging.warning(
@@ -77,7 +93,13 @@ class Miner(BaseMinerNeuron):
         )
         return False, "Hotkey recognized!"
 
-    async def priority(self, synapse: core.protocol.PatternQuery) -> float:
+    async def priority_pattern_query_ack(self, synapse: core.protocol.PatternQueryAck) -> float:
+        return await self._priority(synapse)
+
+    async def priority_pattern_query(self, synapse: core.protocol.PatternQuery) -> float:
+        return await self._priority(synapse)
+
+    async def _priority(self, synapse: core.protocol.PatternQuery | core.protocol.PatternQueryAck) -> float:
 
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
             bt.logging.warning(
@@ -97,9 +119,22 @@ class Miner(BaseMinerNeuron):
         return priority
 
 
-# This is the main function, which runs the miner.
 if __name__ == "__main__":
+    terminate_event = asyncio.Event()
+
+    def signal_handler(sig, frame):
+        bt.logging.info(
+            "Shutdown signal received",
+            extra={
+                "signal": sig,
+                "graceful_shutdown": True
+            }
+        )
+        terminate_event.set()
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     with Miner() as miner:
-        while True:
-            bt.logging.info(f"Miner running... {time.time()}")
+        while not terminate_event.is_set():
             time.sleep(5)

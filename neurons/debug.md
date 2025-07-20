@@ -1,0 +1,1 @@
+``--netuid 396 --subtensor.network test --subtensor.chain_endpoint wss://test.finney.opentensor.ai:443 --wallet.name miner --wallet.hotkey default --logging.trace``
